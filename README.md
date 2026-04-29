@@ -170,7 +170,3 @@ npm run start
 ## Licencia
 
 ISC
-
-## Soporte
-
-Para soporte, envía un email a support@commonsmarketplace.com o abre un issue en GitHub.
