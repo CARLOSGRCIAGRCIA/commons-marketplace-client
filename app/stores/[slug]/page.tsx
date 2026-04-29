@@ -1,0 +1,45 @@
+import type { Metadata } from 'next';
+import { StoreDetailClient } from './store-detail-client';
+
+interface StorePageProps {
+  params: Promise<{ slug: string }>;
+}
+
+export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: StorePageProps): Promise<Metadata> {
+  try {
+    const { slug } = await params;
+    
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/v1/stores/${slug}`,
+      { cache: 'no-store' }
+    );
+    
+    if (!response.ok) {
+      return { title: 'Tienda no encontrada | Commons Marketplace' };
+    }
+    
+    const store = await response.json();
+    
+    const seoTitle = store.storeName || 'Tienda';
+    const seoDesc = store.description || '';
+    
+    return {
+      title: `${seoTitle} | Commons Marketplace`,
+      description: seoDesc?.slice(0, 160) || '',
+      openGraph: {
+        title: seoTitle,
+        description: seoDesc?.slice(0, 160) || '',
+        type: 'website',
+      },
+    };
+  } catch (error) {
+    return { title: 'Commons Marketplace' };
+  }
+}
+
+export default async function StoreDetailPage({ params }: StorePageProps) {
+  const { slug } = await params;
+  return <StoreDetailClient storeId={slug} />;
+}
