@@ -1,4 +1,7 @@
-export const API_URL = process.env.URL_BACKEND || 'http://localhost:5000';
+// NEXT_PUBLIC_ prefix is mandatory here: this constant feeds the shared
+// axios client, which runs in the BROWSER. Non-prefixed vars are not
+// inlined by Next.js and would silently fall back to localhost.
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export const API_ENDPOINTS = {
   auth: {
