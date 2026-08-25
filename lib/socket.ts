@@ -4,14 +4,19 @@ import { io, Socket } from 'socket.io-client';
 
 let socket: Socket | null = null;
 
+// Empty/unset vars mean SAME-ORIGIN: socket.io attaches to wherever the
+// page was loaded from (the client reverse proxy routes /socket.io/ to
+// the API over the docker network). This keeps the backend private -
+// the browser never needs its address.
 const SOCKET_URL =
   process.env.NEXT_PUBLIC_SOCKET_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:5000';
+  '';
 
 export const getSocket = (): Socket => {
   if (!socket) {
-    socket = io(SOCKET_URL, {
+    // io(undefined) connects to the current page origin
+    socket = io(SOCKET_URL || undefined, {
       autoConnect: false,
       transports: ['websocket', 'polling'],
     });
