@@ -20,6 +20,11 @@ ARG NEXT_PUBLIC_SOCKET_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend:5000}
 ENV NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://backend:5000}
 
+# Origin used ONLY by server-side rewrites (next.config.ts) inside the
+# docker network; browser code keeps using NEXT_PUBLIC_* instead.
+ARG INTERNAL_API_ORIGIN
+ENV INTERNAL_API_ORIGIN=${INTERNAL_API_ORIGIN:-http://backend:5000}
+
 
 RUN npm run build
 
