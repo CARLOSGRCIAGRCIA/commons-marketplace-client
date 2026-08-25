@@ -90,14 +90,16 @@ services:
     image: nginx:alpine
     container_name: commons-nginx
     ports:
-      - "${NGINX_HTTP_PORT:-80}:80"
-      - "${NGINX_HTTPS_PORT:-443}:443"
+      - "${NGINX_HTTPS_PORT:-8444}:443"
+    environment:
+      # Rendered into nginx config by the image entrypoint
+      UPSTREAM_HOST: client
+      UPSTREAM_PORT: '3000'
     volumes:
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/conf/templates:/etc/nginx/templates:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
       - client
-      - backend
     networks:
       - marketplace-network
     restart: unless-stopped
