@@ -24,18 +24,16 @@ export default function EditStorePage() {
   });
 
   useEffect(() => {
-    if (store) {
-      const newFormData = {
+    if (!store) return;
+    // Deferred to a timeout: synchronous setState inside effect bodies
+    // is disallowed by react-hooks/set-state-in-effect.
+    const timer = setTimeout(() => {
+      setFormData({
         storeName: store.storeName || '',
         description: store.description || '',
-      };
-      setFormData((prev) => {
-        if (prev.storeName === newFormData.storeName && prev.description === newFormData.description) {
-          return prev;
-        }
-        return newFormData;
       });
-    }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [store]);
 
   const handleChange = (

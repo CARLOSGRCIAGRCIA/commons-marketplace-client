@@ -3,11 +3,22 @@ import { useEffect, useState } from 'react';
 import { useRequireRole } from '@/hooks/use-auth';
 import { apiClient, API_ENDPOINTS } from '@/lib/api';
 import Link from 'next/link';
-import { Button, Badge, Spinner } from '@/components/ui';
+import { Badge, Spinner } from '@/components/ui';
 
 interface AdminStats {
   totalUsers: number; totalStores: number; totalProducts: number;
   totalReviews: number; pendingStores: number; pendingSellerRequests: number;
+}
+
+interface StoreSummary {
+  _id: string;
+  storeName?: string;
+  description?: string;
+  status?: string;
+}
+
+interface UserSummary {
+  _id: string;
 }
 
 const STATS = [
@@ -30,7 +41,7 @@ export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pendingStores, setPendingStores] = useState<any[]>([]);
+  const [pendingStores, setPendingStores] = useState<StoreSummary[]>([]);
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
@@ -43,23 +54,27 @@ export default function AdminPage() {
           statsData = await apiClient.get<AdminStats>(API_ENDPOINTS.admin.stats);
         } catch {
           const [usersData, storesData, productsData] = await Promise.all([
-            apiClient.get<any[]>(API_ENDPOINTS.users.list, {}),
-            apiClient.get<any[]>(API_ENDPOINTS.stores.list),
-            apiClient.get<any[]>('/api/v1/products?page=1&limit=1000'),
+            apiClient.get<UserSummary[]>(API_ENDPOINTS.users.list, {}),
+            apiClient.get<StoreSummary[]>(API_ENDPOINTS.stores.list),
+            apiClient.get<StoreSummary[] | { data?: StoreSummary[]; products?: StoreSummary[] }>('/api/v1/products?page=1&limit=1000'),
           ]);
-          const productsArray = (productsData as any).data || (productsData as any).products || productsData;
+          const productsArray = Array.isArray(productsData)
+            ? productsData
+            : productsData.data || productsData.products || [];
           statsData = {
-            totalUsers: (usersData as any[]).length,
-            totalStores: (storesData as any[]).length,
+            totalUsers: usersData.length,
+            totalStores: storesData.length,
             totalProducts: productsArray.length,
             totalReviews: 0,
-            pendingStores: (storesData as any[]).filter((s: any) => (s.status || '').toLowerCase() === 'pending').length,
+            pendingStores: storesData.filter((s) => (s.status || '').toLowerCase() === 'pending').length,
             pendingSellerRequests: 0,
           };
         }
-        const storesData = await apiClient.get<any[]>(API_ENDPOINTS.stores.pending).catch(() => []);
+        const pendingStoresData = await apiClient
+          .get<StoreSummary[]>(API_ENDPOINTS.stores.pending)
+          .catch(() => [] as StoreSummary[]);
         setStats(statsData);
-        setPendingStores(storesData);
+        setPendingStores(pendingStoresData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error al cargar datos');
       } finally {

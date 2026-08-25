@@ -31,8 +31,15 @@ function SearchBarContent() {
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    setQuery(searchParams.get('search') || '');
-    setRecentSearches(getRecentSearches());
+    // Deferred to a timeout: synchronous setState inside effect bodies
+    // is disallowed by react-hooks/set-state-in-effect, and localStorage
+    // is an external system that should not be read during render.
+    const search = searchParams.get('search') || '';
+    const timer = setTimeout(() => {
+      setQuery(search);
+      setRecentSearches(getRecentSearches());
+    }, 0);
+    return () => clearTimeout(timer);
   }, [searchParams]);
 
   const performSearch = useCallback((searchQuery: string) => {

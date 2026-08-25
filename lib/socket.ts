@@ -58,7 +58,19 @@ export const stopTyping = (conversationId: string): void => {
   }
 };
 
-export const onNewMessage = (callback: (data: { message: any; conversationId: string }) => void): (() => void) => {
+export interface IncomingSocketMessage {
+  _id?: string;
+  id?: string;
+  content?: string;
+  senderId?: string;
+  sender?: { id?: string };
+  receiverId?: string;
+  createdAt?: string;
+}
+
+export const onNewMessage = (
+  callback: (data: { message: IncomingSocketMessage; conversationId: string }) => void
+): (() => void) => {
   const socket = getSocket();
   socket.on('new-message', callback);
   return () => {

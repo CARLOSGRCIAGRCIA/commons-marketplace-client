@@ -42,26 +42,20 @@ export default function EditProductPage() {
   }, []);
 
   useEffect(() => {
-    if (product) {
-      const newFormData = {
+    if (!product) return;
+    // Deferred to a timeout: synchronous setState inside effect bodies
+    // is disallowed by react-hooks/set-state-in-effect.
+    const timer = setTimeout(() => {
+      setFormData({
         name: product.name || '',
         description: product.description || '',
         price: String(product.price),
         stock: String(product.stock),
         categoryId: product.categoryId || '',
         status: product.status || 'active',
-      };
-      setFormData((prev) => {
-        if (
-          prev.name === newFormData.name &&
-          prev.price === newFormData.price &&
-          prev.stock === newFormData.stock
-        ) {
-          return prev;
-        }
-        return newFormData;
       });
-    }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [product]);
 
   const handleChange = (
