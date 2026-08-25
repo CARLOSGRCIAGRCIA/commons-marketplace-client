@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: StorePageProps): Promise<Meta
     const { slug } = await params;
     
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/v1/stores/${slug}`,
+      `${process.env.INTERNAL_API_ORIGIN || "http://commons-proxy:80"}/api/v1/stores/${slug}`,
       { cache: 'no-store' }
     );
     

@@ -17,8 +17,12 @@ COPY . .
 
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_SOCKET_URL
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend:5000}
-ENV NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://backend:5000}
+# `-` (not `:-`): an explicitly EMPTY value must survive - empty means
+# same-origin relative calls, routed by the client reverse proxy. A
+# backend:5000-style default here would get BAKED into the browser
+# bundle, where no docker hostname can ever resolve.
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL-}
+ENV NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL-}
 
 ARG INTERNAL_API_ORIGIN
 # Default targets the API blue-green proxy on commons-net; local compose

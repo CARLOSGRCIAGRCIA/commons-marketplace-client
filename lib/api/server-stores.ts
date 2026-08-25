@@ -2,7 +2,7 @@ import type { Store } from '@/types';
 
 export async function getStoreById(id: string): Promise<Store | null> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/v1/stores/${id}`, {
+    const response = await fetch(`${process.env.INTERNAL_API_ORIGIN || "http://commons-proxy:80"}/api/v1/stores/${id}`, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -23,8 +23,8 @@ export async function getStoreById(id: string): Promise<Store | null> {
 export async function getStores(status?: string): Promise<Store[]> {
   try {
     const url = status 
-      ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/v1/stores?status=${status}`
-      : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/v1/stores`;
+      ? `${process.env.INTERNAL_API_ORIGIN || "http://commons-proxy:80"}/api/v1/stores?status=${status}`
+      : `${process.env.INTERNAL_API_ORIGIN || "http://commons-proxy:80"}/api/v1/stores`;
     
     const response = await fetch(url, {
       headers: {

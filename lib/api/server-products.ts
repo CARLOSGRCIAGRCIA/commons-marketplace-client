@@ -2,7 +2,7 @@ import type { Product } from '@/types';
 
 export async function getProductById(id: string): Promise<Product | null> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/v1/products/${id}`, {
+    const response = await fetch(`${process.env.INTERNAL_API_ORIGIN || "http://commons-proxy:80"}/api/v1/products/${id}`, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -32,7 +32,7 @@ export async function getProducts(filters?: Record<string, unknown>): Promise<Pr
       });
     }
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/v1/products?${params}`, {
+    const response = await fetch(`${process.env.INTERNAL_API_ORIGIN || "http://commons-proxy:80"}/api/v1/products?${params}`, {
       headers: {
         'Content-Type': 'application/json',
       },
