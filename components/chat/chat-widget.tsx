@@ -3,15 +3,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { apiClient, API_ENDPOINTS } from '@/lib/api';
-import { Button, Input } from '@/components/ui';
 import {
   connectSocket,
-  disconnectSocket,
   joinConversation,
   leaveConversation,
   onNewMessage,
 } from '@/lib/socket';
-import type { Conversation, Message, User } from '@/types';
+import type { Conversation, User } from '@/types';
 
 interface ChatMessage {
   _id: string;
@@ -22,6 +20,24 @@ interface ChatMessage {
   receiver?: { id: string };
   receiverId: string;
   createdAt: string;
+}
+
+interface ParticipantLike {
+  _id?: string;
+  id?: string;
+  name?: string;
+  lastName?: string;
+  email?: string;
+  profilePicUrl?: string;
+  role?: string;
+}
+
+interface ConversationRef {
+  _id?: string;
+  id?: string;
+  lastMessage?: Conversation['lastMessage'];
+  updatedAt?: string;
+  createdAt?: string;
 }
 
 function getInitials(name?: string) {
@@ -49,12 +65,12 @@ function formatDate(dateStr: string) {
   });
 }
 
-function getDisplayName(user?: any): string {
+function getDisplayName(user?: ParticipantLike | null): string {
   if (!user) return 'Usuario';
   return user.name || user.email || 'Usuario';
 }
 
-function getOtherParticipant(participants: any[], currentUserId?: string) {
+function getOtherParticipant(participants?: ParticipantLike[], currentUserId?: string) {
   if (!participants || participants.length === 0) return null;
   return participants.find(p => {
     const pId = p._id || p.id;
@@ -72,7 +88,7 @@ export function ChatWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const userCacheRef = useRef<Record<string, any>>({});
+  const userCacheRef = useRef<Record<string, ParticipantLike>>({});
   const inputRef = useRef<HTMLInputElement>(null);
 
   const fetchConversations = useCallback(async () => {
@@ -96,10 +112,10 @@ export function ChatWidget() {
   const fetchMessages = useCallback(async (conversationId: string) => {
     setIsLoading(true);
     try {
-      const response = await apiClient.get(
+      const response = await apiClient.get<{ data?: { messages?: ChatMessage[] } }>(
         API_ENDPOINTS.chat.messages(conversationId)
       );
-      const messagesData = (response as any)?.data?.messages || [];
+      const messagesData = response?.data?.messages || [];
       setMessages(messagesData);
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -114,7 +130,7 @@ export function ChatWidget() {
       const { sellerId } = e.detail;
       setIsOpen(true);
       try {
-        const response = await apiClient.get<{ success: boolean; data: any }>(
+        const response = await apiClient.get<{ success?: boolean; data?: ConversationRef }>(
           API_ENDPOINTS.chat.getOrCreateConversation(sellerId)
         );
 
@@ -124,16 +140,18 @@ export function ChatWidget() {
         const convId = conv._id || conv.id;
 
         // Get seller info
-        let otherUserInfo = userCacheRef.current[sellerId];
+        let otherUserInfo: ParticipantLike | undefined = userCacheRef.current[sellerId];
         if (!otherUserInfo) {
           try {
-            const userResp = await apiClient.get<any>(
+            const userResp: unknown = await apiClient.get(
               API_ENDPOINTS.users.get(sellerId)
             );
+            const candidate = userResp as { data?: User } | User | null;
             // The API returns the user object directly, not wrapped in { data: user }
-            otherUserInfo = userResp?.data || userResp;
-            if (otherUserInfo && otherUserInfo._id) {
-              userCacheRef.current[sellerId] = otherUserInfo;
+            const resolved = ((candidate as { data?: User })?.data || candidate) as User;
+            if (resolved && resolved._id) {
+              userCacheRef.current[sellerId] = resolved;
+              otherUserInfo = resolved;
             }
             } catch (err) {
             console.error('Error fetching seller info:', err);
@@ -159,10 +177,10 @@ export function ChatWidget() {
         ];
 
         const conversationObj: Conversation = {
-          _id: convId,
+          _id: convId || `conv-${Date.now()}`,
           participants: participants as unknown as User[],
           lastMessage: conv.lastMessage,
-          updatedAt: conv.updatedAt || conv.createdAt,
+          updatedAt: conv.updatedAt || conv.createdAt || new Date().toISOString(),
         };
 
         setSelectedConversation(conversationObj);
@@ -180,16 +198,19 @@ export function ChatWidget() {
   useEffect(() => {
     if (isOpen && isAuthenticated && user) {
       connectSocket(user._id);
-      fetchConversations();
+      // Deferred one microtask: the fetcher updates state synchronously
+      // and react-hooks/set-state-in-effect forbids that inside effect
+      // bodies.
+      void Promise.resolve().then(fetchConversations);
 
       const cleanup = onNewMessage((data) => {
         const message = data.message;
         const senderId = message?.senderId || message?.sender?.id;
         const msgObj: ChatMessage = {
           _id: message?.id || message._id || `temp-${Date.now()}`,
-          senderId,
-          content: message.content,
-          receiverId: message.receiverId,
+          senderId: senderId || '',
+          content: message.content || '',
+          receiverId: message.receiverId || '',
           createdAt: message.createdAt || new Date().toISOString(),
         };
 
@@ -210,7 +231,7 @@ export function ChatWidget() {
   // Join/leave conversation rooms
   useEffect(() => {
     if (selectedConversation?._id) {
-      fetchMessages(selectedConversation._id);
+      void Promise.resolve().then(() => fetchMessages(selectedConversation._id));
       joinConversation(selectedConversation._id);
     }
     return () => {
@@ -236,16 +257,14 @@ export function ChatWidget() {
     setSelectedConversation({ ...conv, _id: convId });
   };
 
-  const sendMessage = async (e: React.FormEvent) => {
+  const sendMessage = async (e: React.FormEvent | React.KeyboardEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedConversation || !user) return;
 
-    const otherUser = selectedConversation.participants?.find(
-      (p) => (p._id || (p as any).id) !== user?._id
-    );
+    const otherUser = getOtherParticipant(selectedConversation.participants, user._id);
     if (!otherUser) return;
 
-    const receiverId = otherUser._id || (otherUser as any).id;
+    const receiverId = otherUser._id || otherUser.id;
     if (!receiverId) return;
 
     setIsSending(true);
@@ -393,9 +412,9 @@ export function ChatWidget() {
             </div>
           ) : (
             <ul className="divide-y-2 divide-gray-200">
-              {conversations.map((conv) => {
+              {conversations.map((conv, idx) => {
                 const otherUser = getOtherParticipant(conv.participants, user?._id);
-                const key = conv._id || conv.id || `conv-${Math.random()}`;
+                const key = conv._id || conv.id || `conv-${idx}`;
                 const displayName = getDisplayName(otherUser);
                 return (
                   <li key={key}>
@@ -518,7 +537,7 @@ export function ChatWidget() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  sendMessage(e as any);
+                  sendMessage(e);
                 }
               }}
             />

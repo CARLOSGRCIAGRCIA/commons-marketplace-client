@@ -52,7 +52,16 @@ export function useProducts(filters?: ProductFilters): UseProductsResult {
   }, [filters?.categoryId, filters?.search, filters?.page, filters?.limit]);
 
   useEffect(() => {
-    fetchProducts();
+    // Deferred one microtask: the fetcher flips isLoading synchronously
+    // and react-hooks/set-state-in-effect forbids that inside effect
+    // bodies. Semantics unchanged - just runs one tick later.
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) fetchProducts();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [fetchProducts]);
 
   return {

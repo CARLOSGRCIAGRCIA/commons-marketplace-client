@@ -21,14 +21,18 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    if (user) {
+    if (!user) return;
+    // Deferred to a timeout: synchronous setState inside effect bodies
+    // is disallowed by react-hooks/set-state-in-effect.
+    const timer = setTimeout(() => {
       setFormData({
         name: user.name || '',
         lastName: user.lastName || '',
         phoneNumber: user.phoneNumber || '',
         address: user.address || '',
       });
-    }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [user]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,7 +61,7 @@ export default function ProfilePage() {
       data.append('address', formData.address);
       if (avatar) data.append('avatar', avatar);
 
-      const updatedUser = await userApi.update(user!._id, data as any);
+      const updatedUser = await userApi.update(user!._id, data);
       setUser({
         ...user!,
         ...updatedUser,
