@@ -21,7 +21,9 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend:5000}
 ENV NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://backend:5000}
 
 ARG INTERNAL_API_ORIGIN
-ENV INTERNAL_API_ORIGIN=${INTERNAL_API_ORIGIN:-http://backend:5000}
+# Default targets the API blue-green proxy on commons-net; local compose
+# overrides it to http://backend:5000.
+ENV INTERNAL_API_ORIGIN=${INTERNAL_API_ORIGIN:-http://commons-proxy:80}
 
 RUN npm run build
 
