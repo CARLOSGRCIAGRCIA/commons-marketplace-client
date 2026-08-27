@@ -6,6 +6,8 @@ import { productApi, categoryApi } from '@/lib/api';
 import type { Category } from '@/types';
 import { Button, Input, Textarea, Card, CardContent, Spinner } from '@/components/ui';
 import { ImageUpload } from '@/components/ui/image-upload';
+import { FIELD_LIMITS, requiredText, optionalText, isPositiveNumber, isNonNegativeInt } from '@/lib/validation';
+import { sanitizeFormData, validateNumericField } from '@/lib/sanitize';
 
 export default function NewProductPage() {
   const params = useParams();
@@ -16,6 +18,7 @@ export default function NewProductPage() {
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [images, setImages] = useState<File[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     name: '',
@@ -46,6 +49,11 @@ export default function NewProductPage() {
 
   const handleImageChange = (file: File | null) => {
     if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setFieldErrors((prev) => ({ ...prev, images: 'Cada imagen no debe superar 5MB' }));
+        return;
+      }
+      setFieldErrors((prev) => ({ ...prev, images: '' }));
       setImages((prev) => {
         if (prev.length >= 5) return prev;
         return [...prev, file];
@@ -56,6 +64,12 @@ export default function NewProductPage() {
   };
 
   const handleImageChangeMultiple = (newFiles: File[]) => {
+    const oversized = newFiles.some((file) => file.size > 5 * 1024 * 1024);
+    if (oversized) {
+      setFieldErrors((prev) => ({ ...prev, images: 'Cada imagen no debe superar 5MB' }));
+      return;
+    }
+    setFieldErrors((prev) => ({ ...prev, images: '' }));
     setImages((prev) => {
       const combined = [...prev, ...newFiles];
       return combined.slice(0, 5);
@@ -68,19 +82,51 @@ export default function NewProductPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setError(null);
+
+    const errors: Record<string, string> = {};
+
+    const nameError = requiredText(formData.name, FIELD_LIMITS.PRODUCT_NAME, 'El nombre');
+    if (nameError) errors.name = nameError;
+
+    const descError = requiredText(formData.description, FIELD_LIMITS.PRODUCT_DESCRIPTION, 'La descripción');
+    if (descError) errors.description = descError;
+
+    if (!isPositiveNumber(formData.price)) {
+      errors.price = 'El precio debe ser un número mayor o igual a 0';
+    }
+    if (!isNonNegativeInt(formData.stock)) {
+      errors.stock = 'El stock debe ser un número entero mayor o igual a 0';
+    }
+    if (!formData.categoryId) {
+      errors.categoryId = 'Debes seleccionar una categoría';
+    }
+
+    if (images.length === 0) {
+      errors.images = 'Debes subir al menos una imagen principal';
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError('Por favor corrige los campos marcados en rojo.');
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const data = new FormData();
       data.append('name', formData.name);
       data.append('description', formData.description);
-      data.append('price', formData.price);
-      data.append('stock', formData.stock);
+
+      const price = validateNumericField(formData.price, {});
+      const stock = validateNumericField(formData.stock, { integer: true });
+      data.append('price', String(price));
+      data.append('stock', String(stock));
+
       data.append('categoryId', formData.categoryId);
       data.append('storeSlug', storeSlug);
-      data.append('status', 'active');
-      
+
       if (images.length > 0) {
         data.append('mainImage', images[0]);
         images.slice(1).forEach((img) => {
@@ -88,7 +134,7 @@ export default function NewProductPage() {
         });
       }
 
-      await productApi.create(data);
+      await productApi.create(sanitizeFormData(data));
       router.push(`/dashboard/my-store/${storeSlug}/products`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al crear producto');
@@ -117,6 +163,9 @@ export default function NewProductPage() {
               multiple
               maxImages={5}
             />
+            {fieldErrors.images && (
+              <p className="text-xs font-medium text-red-600">{fieldErrors.images}</p>
+            )}
 
             <Input
               label="Nombre del producto"
@@ -125,6 +174,8 @@ export default function NewProductPage() {
               onChange={handleChange}
               placeholder="Nombre del producto"
               required
+              maxLength={FIELD_LIMITS.PRODUCT_NAME}
+              error={fieldErrors.name}
             />
 
             <Textarea
@@ -134,6 +185,8 @@ export default function NewProductPage() {
               onChange={handleChange}
               placeholder="Descripción del producto..."
               rows={3}
+              maxLength={FIELD_LIMITS.PRODUCT_DESCRIPTION}
+              error={fieldErrors.description}
             />
 
             <div className="grid grid-cols-2 gap-4">
@@ -146,6 +199,7 @@ export default function NewProductPage() {
                 value={formData.price}
                 onChange={handleChange}
                 required
+                error={fieldErrors.price}
               />
               <Input
                 label="Stock"
@@ -155,6 +209,7 @@ export default function NewProductPage() {
                 value={formData.stock}
                 onChange={handleChange}
                 required
+                error={fieldErrors.stock}
               />
             </div>
 
@@ -166,7 +221,9 @@ export default function NewProductPage() {
                 name="categoryId"
                 value={formData.categoryId}
                 onChange={handleChange}
-                className="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                className={`block w-full rounded-lg border px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary ${
+                  fieldErrors.categoryId ? 'border-red-500' : 'border-gray-300'
+                }`}
                 required
               >
                 <option value="">Selecciona una categoría</option>
@@ -176,6 +233,9 @@ export default function NewProductPage() {
                   </option>
                 ))}
               </select>
+              {fieldErrors.categoryId && (
+                <p className="text-xs font-medium text-red-600">{fieldErrors.categoryId}</p>
+              )}
             </div>
 
             <div className="flex gap-4">

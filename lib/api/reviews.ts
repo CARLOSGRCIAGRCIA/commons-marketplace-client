@@ -7,8 +7,14 @@ export const reviewApi = {
 
   getById: (id: string) => apiClient.get<Review>(API_ENDPOINTS.reviews.get(id)),
 
-  create: (data: { productId: string; score: number; commentary?: string }) =>
-    apiClient.post<Review>(API_ENDPOINTS.reviews.create, data),
+  create: (data: {
+    userId: string;
+    type: 'product' | 'store';
+    productId?: string;
+    storeId?: string;
+    score: number;
+    commentary?: string;
+  }) => apiClient.post<Review>(API_ENDPOINTS.reviews.create, data),
 
   update: (id: string, data: { score?: number; commentary?: string }) =>
     apiClient.put<Review>(API_ENDPOINTS.reviews.update(id), data),
