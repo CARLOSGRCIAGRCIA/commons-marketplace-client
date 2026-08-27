@@ -6,6 +6,8 @@ import { useStore } from '@/hooks/use-stores';
 import { storeApi } from '@/lib/api';
 import { Button, Input, Textarea, Card, CardContent, Spinner } from '@/components/ui';
 import { ImageUpload } from '@/components/ui/image-upload';
+import { FIELD_LIMITS, requiredText, optionalText } from '@/lib/validation';
+import { sanitizeFormData } from '@/lib/sanitize';
 
 export default function EditStorePage() {
   const params = useParams();
@@ -17,6 +19,7 @@ export default function EditStorePage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logo, setLogo] = useState<File | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     storeName: '',
@@ -45,18 +48,30 @@ export default function EditStorePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setError(null);
 
+    const errors: Record<string, string> = {};
+    const nameError = requiredText(formData.storeName, FIELD_LIMITS.STORE_NAME, 'El nombre de la tienda');
+    if (nameError) errors.storeName = nameError;
+    const descError = optionalText(formData.description, FIELD_LIMITS.STORE_DESCRIPTION, 'La descripción');
+    if (descError) errors.description = descError;
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError('Por favor corrige los campos marcados en rojo.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
-      const formDataToSend = new FormData() as unknown;
-      const fd = formDataToSend as FormData;
+      const fd = new FormData();
       fd.append('storeName', formData.storeName);
       fd.append('description', formData.description);
       if (logo) {
         fd.append('logo', logo);
       }
-      await storeApi.update(storeSlug, fd);
+      await storeApi.update(storeSlug, sanitizeFormData(fd));
       router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al actualizar tienda');
@@ -111,9 +126,19 @@ export default function EditStorePage() {
             <ImageUpload
               label="Logo de la tienda"
               value={logo ? URL.createObjectURL(logo) : store?.logo}
-              onChange={setLogo}
+              onChange={(file) => {
+                if (file && file.size > 5 * 1024 * 1024) {
+                  setFieldErrors((prev) => ({ ...prev, logo: 'El logo no debe superar 5MB' }));
+                  return;
+                }
+                setFieldErrors((prev) => ({ ...prev, logo: '' }));
+                setLogo(file);
+              }}
               accept="image/*"
             />
+            {fieldErrors.logo && (
+              <p className="text-xs font-medium text-red-600">{fieldErrors.logo}</p>
+            )}
 
             <Input
               label="Nombre de la tienda"
@@ -121,6 +146,8 @@ export default function EditStorePage() {
               value={formData.storeName}
               onChange={handleChange}
               required
+              maxLength={FIELD_LIMITS.STORE_NAME}
+              error={fieldErrors.storeName}
             />
 
             <Textarea
@@ -129,6 +156,8 @@ export default function EditStorePage() {
               value={formData.description}
               onChange={handleChange}
               rows={4}
+              maxLength={FIELD_LIMITS.STORE_DESCRIPTION}
+              error={fieldErrors.description}
             />
 
             <div className="flex gap-4">
