@@ -45,8 +45,14 @@ export function RegisterForm() {
     }
     if (!formData.password) {
       errors.password = 'La contraseña es requerida';
-    } else if (formData.password.length < 6) {
-      errors.password = 'La contraseña debe tener al menos 6 caracteres';
+    } else if (formData.password.length < 8) {
+      errors.password = 'La contraseña debe tener al menos 8 caracteres';
+    } else if (!/[A-Z]/.test(formData.password)) {
+      errors.password = 'La contraseña debe incluir al menos una letra mayúscula';
+    } else if (!/[a-z]/.test(formData.password)) {
+      errors.password = 'La contraseña debe incluir al menos una letra minúscula';
+    } else if (!/[0-9]/.test(formData.password)) {
+      errors.password = 'La contraseña debe incluir al menos un número';
     }
     if (formData.password !== formData.confirmPassword) {
       errors.confirmPassword = 'Las contraseñas no coinciden';
@@ -113,7 +119,6 @@ export function RegisterForm() {
           className="block w-full border-2 border-gray-300 bg-surface px-3 py-2.5 font-body text-sm transition-all duration-200 focus:border-primary focus:shadow-[0_0_0_3px_var(--primary-ghost)] focus:outline-none"
         >
           <option value="buyer">Comprador</option>
-          <option value="seller">Vendedor</option>
         </select>
       </div>
 

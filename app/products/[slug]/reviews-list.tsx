@@ -21,13 +21,7 @@ export function useReviews(productId: string) {
       setIsLoading(true);
       try {
         const response = await reviewApi.getAll({ productId, limit: 10 });
-        if (response?.data && Array.isArray(response.data)) {
-          setReviews(response.data);
-        } else if (Array.isArray(response)) {
-          setReviews(response);
-        } else {
-          setReviews([]);
-        }
+        setReviews(Array.isArray(response?.reviews) ? response.reviews : []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error al cargar reseñas');
       } finally {
@@ -63,7 +57,7 @@ export function ReviewsSection({ productId }: ReviewsListProps) {
       {reviews.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {reviews.map((review) => (
-            <Card key={review._id}>
+            <Card key={review.id}>
               <CardContent>
                 <div className="flex items-center gap-2 mb-2">
                   <div className="flex">
@@ -78,9 +72,7 @@ export function ReviewsSection({ productId }: ReviewsListProps) {
                       </svg>
                     ))}
                   </div>
-                  <span className="text-sm text-gray-500">
-                    {review.user?.name || 'Usuario'}
-                  </span>
+                  <span className="text-sm text-gray-500">Usuario</span>
                 </div>
                 {review.commentary && (
                   <p className="text-gray-600 text-sm">{review.commentary}</p>

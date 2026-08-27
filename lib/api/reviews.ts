@@ -1,9 +1,15 @@
 import { apiClient, API_ENDPOINTS } from './client';
-import type { Review, PaginatedResponse } from '@/types';
+import type { Review } from '@/types';
+
+export interface ReviewListResponse {
+  message: string;
+  reviews: Review[];
+  count: number;
+}
 
 export const reviewApi = {
   getAll: (filters?: { productId?: string; page?: number; limit?: number }) =>
-    apiClient.get<PaginatedResponse<Review>>(API_ENDPOINTS.reviews.list, filters as Record<string, unknown>),
+    apiClient.get<ReviewListResponse>(API_ENDPOINTS.reviews.list, filters as Record<string, unknown>),
 
   getById: (id: string) => apiClient.get<Review>(API_ENDPOINTS.reviews.get(id)),
 
