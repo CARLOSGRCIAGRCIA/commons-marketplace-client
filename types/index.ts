@@ -93,14 +93,15 @@ export function getStoreSlug(store: Store): string {
 }
 
 export interface Review {
-  _id: string;
+  id: string;
   userId: string;
-  productId: string;
+  type: 'product' | 'store';
+  productId?: string;
+  storeId?: string;
   score: 1 | 2 | 3 | 4 | 5;
   commentary?: string;
   createdAt: string;
   updatedAt: string;
-  user?: User;
 }
 
 export interface Conversation {
