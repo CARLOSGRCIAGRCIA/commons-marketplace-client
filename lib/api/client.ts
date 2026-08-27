@@ -11,7 +11,7 @@ interface RefreshResponse {
 class ApiClient {
   private client: AxiosInstance;
   private isRefreshing = false;
-  private refreshSubscribers: ((token: string) => void)[] = [];
+  private refreshSubscribers: ((token: string | null) => void)[] = [];
 
   constructor() {
     this.client = axios.create({
@@ -54,9 +54,12 @@ class ApiClient {
         
         if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
           if (this.isRefreshing) {
-            return new Promise((resolve) => {
+            return new Promise<string | null>((resolve) => {
               this.refreshSubscribers.push(resolve);
             }).then((token) => {
+              if (!token) {
+                return Promise.reject(error);
+              }
               originalRequest.headers.Authorization = `Bearer ${token}`;
               return this.client(originalRequest);
             });
@@ -67,18 +70,22 @@ class ApiClient {
 
           try {
             const token = await this.refreshToken();
-            
+
             if (token) {
               this.refreshSubscribers.forEach((resolve) => resolve(token));
               this.refreshSubscribers = [];
-              
+
               originalRequest.headers.Authorization = `Bearer ${token}`;
               return this.client(originalRequest);
             } else {
+              this.refreshSubscribers.forEach((resolve) => resolve(null));
+              this.refreshSubscribers = [];
               this.handleLogout();
               return Promise.reject(error);
             }
           } catch (refreshError) {
+            this.refreshSubscribers.forEach((resolve) => resolve(null));
+            this.refreshSubscribers = [];
             this.handleLogout();
             return Promise.reject(refreshError);
           } finally {
