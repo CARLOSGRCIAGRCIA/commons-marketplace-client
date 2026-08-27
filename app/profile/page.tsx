@@ -4,6 +4,10 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { userApi } from '@/lib/api';
 import { Button, Input, Spinner } from '@/components/ui';
+import { FIELD_LIMITS, optionalText } from '@/lib/validation';
+import { sanitizeFormData } from '@/lib/sanitize';
+
+const PHONE_REGEX = /^[0-9+()\-\s]*$/;
 
 export default function ProfilePage() {
   const { user, isAuthenticated, setUser } = useAuthStore();
@@ -12,6 +16,7 @@ export default function ProfilePage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     name: '',
@@ -38,6 +43,11 @@ export default function ProfilePage() {
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setFieldErrors((prev) => ({ ...prev, avatar: 'La foto no debe superar 5MB' }));
+      return;
+    }
+    setFieldErrors((prev) => ({ ...prev, avatar: '' }));
     if (avatarPreview) URL.revokeObjectURL(avatarPreview);
     setAvatar(file);
     setAvatarPreview(URL.createObjectURL(file));
@@ -50,9 +60,32 @@ export default function ProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setError(null);
     setSuccess(null);
+
+    const errors: Record<string, string> = {};
+    const nameError = optionalText(formData.name, FIELD_LIMITS.NAME, 'El nombre');
+    if (nameError) errors.name = nameError;
+    const lastNameError = optionalText(formData.lastName, FIELD_LIMITS.LAST_NAME, 'El apellido');
+    if (lastNameError) errors.lastName = lastNameError;
+
+    if (formData.phoneNumber.trim() !== '' && !PHONE_REGEX.test(formData.phoneNumber)) {
+      errors.phoneNumber = 'El teléfono solo puede contener números, espacios, +, ( ) y -';
+    } else {
+      const phoneError = optionalText(formData.phoneNumber, FIELD_LIMITS.PHONE, 'El teléfono');
+      if (phoneError) errors.phoneNumber = phoneError;
+    }
+
+    const addressError = optionalText(formData.address, FIELD_LIMITS.ADDRESS, 'La dirección');
+    if (addressError) errors.address = addressError;
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError('Por favor corrige los campos marcados en rojo.');
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       const data = new FormData();
       data.append('name', formData.name);
@@ -61,7 +94,7 @@ export default function ProfilePage() {
       data.append('address', formData.address);
       if (avatar) data.append('avatar', avatar);
 
-      const updatedUser = await userApi.update(user!._id, data);
+      const updatedUser = await userApi.update(user!._id, sanitizeFormData(data));
       setUser({
         ...user!,
         ...updatedUser,
@@ -136,6 +169,9 @@ export default function ProfilePage() {
                   <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={handleAvatarChange} />
                 </div>
                 <span className="text-[10px] font-mono text-gray-400 uppercase tracking-wider">Foto</span>
+                {fieldErrors.avatar && (
+                  <span className="text-[10px] font-mono text-red-600 uppercase tracking-wider">{fieldErrors.avatar}</span>
+                )}
               </div>
 
               <div className="flex-1 min-w-0 space-y-3">
@@ -157,8 +193,8 @@ export default function ProfilePage() {
 
             {/* Name Fields */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Nombre" name="name" value={formData.name} onChange={handleChange} placeholder="Tu nombre" />
-              <Input label="Apellido" name="lastName" value={formData.lastName} onChange={handleChange} placeholder="Tu apellido" />
+              <Input label="Nombre" name="name" value={formData.name} onChange={handleChange} placeholder="Tu nombre" maxLength={FIELD_LIMITS.NAME} error={fieldErrors.name} />
+              <Input label="Apellido" name="lastName" value={formData.lastName} onChange={handleChange} placeholder="Tu apellido" maxLength={FIELD_LIMITS.LAST_NAME} error={fieldErrors.lastName} />
             </div>
           </div>
         </div>
@@ -169,8 +205,8 @@ export default function ProfilePage() {
             <h2 className="font-display font-semibold text-foreground text-sm uppercase tracking-wider">Contacto</h2>
           </div>
           <div className="p-5 space-y-4">
-            <Input label="Teléfono" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} placeholder="+52 55 0000 0000" type="tel" />
-            <Input label="Dirección" name="address" value={formData.address} onChange={handleChange} placeholder="Calle, número, ciudad…" />
+            <Input label="Teléfono" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} placeholder="+52 55 0000 0000" type="tel" maxLength={FIELD_LIMITS.PHONE} error={fieldErrors.phoneNumber} />
+            <Input label="Dirección" name="address" value={formData.address} onChange={handleChange} placeholder="Calle, número, ciudad…" maxLength={FIELD_LIMITS.ADDRESS} error={fieldErrors.address} />
           </div>
         </div>
 
