@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { API_URL, API_ENDPOINTS } from './endpoints';
+import { sanitizeFormData } from '@/lib/sanitize';
 
 interface RefreshResponse {
   message: string;
@@ -23,6 +24,10 @@ class ApiClient {
 
     this.client.interceptors.request.use(
       (config: InternalAxiosRequestConfig) => {
+        if (config.data instanceof FormData) {
+          config.data = sanitizeFormData(config.data);
+        }
+
         if (typeof window !== 'undefined') {
           try {
             const authData = localStorage.getItem('auth-storage');
