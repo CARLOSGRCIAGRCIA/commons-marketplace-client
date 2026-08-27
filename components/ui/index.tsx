@@ -68,7 +68,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
-export function Input({ className, label, error, id, ...props }: InputProps) {
+export function Input({ className, label, error, id, maxLength, value, ...props }: InputProps) {
   const inputId = id || label?.toLowerCase().replace(/\s+/g, '-');
 
   return (
@@ -96,6 +96,11 @@ export function Input({ className, label, error, id, ...props }: InputProps) {
         {...props}
       />
       {error && <p className="text-xs font-medium text-danger">{error}</p>}
+      {!error && typeof maxLength === 'number' && (
+        <p className="text-right text-[11px] text-gray-400">
+          {String(value ?? '').length}/{maxLength}
+        </p>
+      )}
     </div>
   );
 }
@@ -106,7 +111,7 @@ interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   error?: string;
 }
 
-export function Textarea({ className, label, error, id, ...props }: TextareaProps) {
+export function Textarea({ className, label, error, id, maxLength, value, ...props }: TextareaProps) {
   const inputId = id || label?.toLowerCase().replace(/\s+/g, '-');
 
   return (
@@ -134,6 +139,11 @@ export function Textarea({ className, label, error, id, ...props }: TextareaProp
         {...props}
       />
       {error && <p className="text-xs font-medium text-danger">{error}</p>}
+      {!error && typeof maxLength === 'number' && (
+        <p className="text-right text-[11px] text-gray-400">
+          {String(value ?? '').length}/{maxLength}
+        </p>
+      )}
     </div>
   );
 }
