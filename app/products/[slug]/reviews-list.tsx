@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { reviewApi } from '@/lib/api';
 import type { Review } from '@/types';
 import { Button, Textarea, Card, CardContent } from '@/components/ui';
+import { FIELD_LIMITS, optionalText, isIntInRange } from '@/lib/validation';
 
 interface ReviewsListProps {
   productId: string;
@@ -100,19 +101,37 @@ export function ReviewsSection({ productId }: ReviewsListProps) {
 }
 
 function CreateReviewForm({ productId }: { productId: string }) {
+  const { user } = useAuth();
   const [score, setScore] = useState(5);
   const [commentary, setCommentary] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setError(null);
+    setFieldError(null);
+
+    if (!isIntInRange(score, 1, 5)) {
+      setFieldError('La puntuación debe ser un número entre 1 y 5');
+      return;
+    }
+    const commentaryError = optionalText(commentary, FIELD_LIMITS.REVIEW_COMMENTARY, 'La reseña');
+    if (commentaryError) {
+      setFieldError(commentaryError);
+      return;
+    }
+    if (!user?._id) {
+      setError('Debes iniciar sesión para enviar una reseña.');
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
-      await reviewApi.create({ productId, score, commentary });
+      await reviewApi.create({ userId: user._id, type: 'product', productId, score, commentary });
       setSuccess(true);
       setScore(5);
       setCommentary('');
@@ -138,6 +157,7 @@ function CreateReviewForm({ productId }: { productId: string }) {
       <CardContent>
         <h3 className="font-semibold mb-4">Escribir Reseña</h3>
         {error && <p className="text-red-500 mb-4">{error}</p>}
+        {fieldError && <p className="text-red-500 mb-4">{fieldError}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -169,6 +189,7 @@ function CreateReviewForm({ productId }: { productId: string }) {
             onChange={(e) => setCommentary(e.target.value)}
             placeholder="Cuéntanos tu experiencia..."
             rows={3}
+            maxLength={FIELD_LIMITS.REVIEW_COMMENTARY}
           />
 
           <Button type="submit" isLoading={isSubmitting}>
