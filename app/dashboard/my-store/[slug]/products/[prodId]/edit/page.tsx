@@ -7,6 +7,10 @@ import { productApi, categoryApi } from '@/lib/api';
 import type { Category } from '@/types';
 import { Button, Input, Textarea, Card, CardContent, Spinner } from '@/components/ui';
 import { ImageUpload } from '@/components/ui/image-upload';
+import { FIELD_LIMITS, requiredText, isPositiveNumber, isNonNegativeInt } from '@/lib/validation';
+import { sanitizeFormData, validateNumericField } from '@/lib/sanitize';
+
+const PRODUCT_STATUSES = ['Active', 'Inactive'] as const;
 
 export default function EditProductPage() {
   const params = useParams();
@@ -19,6 +23,7 @@ export default function EditProductPage() {
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [images, setImages] = useState<File[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     name: '',
@@ -26,7 +31,7 @@ export default function EditProductPage() {
     price: '',
     stock: '',
     categoryId: '',
-    status: 'active',
+    status: 'Active',
   });
 
   useEffect(() => {
@@ -46,13 +51,16 @@ export default function EditProductPage() {
     // Deferred to a timeout: synchronous setState inside effect bodies
     // is disallowed by react-hooks/set-state-in-effect.
     const timer = setTimeout(() => {
+      const normalizedStatus = PRODUCT_STATUSES.includes(product.status as (typeof PRODUCT_STATUSES)[number])
+        ? (product.status as string)
+        : 'Active';
       setFormData({
         name: product.name || '',
         description: product.description || '',
         price: String(product.price),
         stock: String(product.stock),
         categoryId: product.categoryId || '',
-        status: product.status || 'active',
+        status: normalizedStatus,
       });
     }, 0);
     return () => clearTimeout(timer);
@@ -67,6 +75,11 @@ export default function EditProductPage() {
 
   const handleImageChange = (file: File | null) => {
     if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setFieldErrors((prev) => ({ ...prev, images: 'Cada imagen no debe superar 5MB' }));
+        return;
+      }
+      setFieldErrors((prev) => ({ ...prev, images: '' }));
       setImages([file]);
     } else {
       setImages([]);
@@ -75,18 +88,47 @@ export default function EditProductPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setError(null);
+
+    const errors: Record<string, string> = {};
+
+    const nameError = requiredText(formData.name, FIELD_LIMITS.PRODUCT_NAME, 'El nombre');
+    if (nameError) errors.name = nameError;
+
+    const descError = requiredText(formData.description, FIELD_LIMITS.PRODUCT_DESCRIPTION, 'La descripción');
+    if (descError) errors.description = descError;
+
+    if (!isPositiveNumber(formData.price)) {
+      errors.price = 'El precio debe ser un número mayor o igual a 0';
+    }
+    if (!isNonNegativeInt(formData.stock)) {
+      errors.stock = 'El stock debe ser un número entero mayor o igual a 0';
+    }
+    if (!formData.categoryId) {
+      errors.categoryId = 'Debes seleccionar una categoría';
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError('Por favor corrige los campos marcados en rojo.');
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const data = new FormData();
       data.append('name', formData.name);
       data.append('description', formData.description);
-      data.append('price', formData.price);
-      data.append('stock', formData.stock);
+
+      const price = validateNumericField(formData.price, {});
+      const stock = validateNumericField(formData.stock, { integer: true });
+      data.append('price', String(price));
+      data.append('stock', String(stock));
+
       data.append('categoryId', formData.categoryId);
       data.append('status', formData.status);
-      
+
       if (images.length > 0) {
         data.append('mainImage', images[0]);
         images.slice(1).forEach((img) => {
@@ -94,7 +136,7 @@ export default function EditProductPage() {
         });
       }
 
-      await productApi.update(productId, data);
+      await productApi.update(productId, sanitizeFormData(data));
       router.push(`/dashboard/my-store/${storeSlug}/products`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al actualizar producto');
@@ -130,6 +172,9 @@ export default function EditProductPage() {
               maxImages={5}
               images={product?.imageUrls}
             />
+            {fieldErrors.images && (
+              <p className="text-xs font-medium text-red-600">{fieldErrors.images}</p>
+            )}
 
             <Input
               label="Nombre del producto"
@@ -137,6 +182,8 @@ export default function EditProductPage() {
               value={formData.name}
               onChange={handleChange}
               required
+              maxLength={FIELD_LIMITS.PRODUCT_NAME}
+              error={fieldErrors.name}
             />
 
             <Textarea
@@ -145,6 +192,8 @@ export default function EditProductPage() {
               value={formData.description}
               onChange={handleChange}
               rows={3}
+              maxLength={FIELD_LIMITS.PRODUCT_DESCRIPTION}
+              error={fieldErrors.description}
             />
 
             <div className="grid grid-cols-2 gap-4">
@@ -157,6 +206,7 @@ export default function EditProductPage() {
                 value={formData.price}
                 onChange={handleChange}
                 required
+                error={fieldErrors.price}
               />
               <Input
                 label="Stock"
@@ -166,6 +216,7 @@ export default function EditProductPage() {
                 value={formData.stock}
                 onChange={handleChange}
                 required
+                error={fieldErrors.stock}
               />
             </div>
 
@@ -177,7 +228,9 @@ export default function EditProductPage() {
                 name="categoryId"
                 value={formData.categoryId}
                 onChange={handleChange}
-                className="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                className={`block w-full rounded-lg border px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary ${
+                  fieldErrors.categoryId ? 'border-red-500' : 'border-gray-300'
+                }`}
                 required
               >
                 <option value="">Selecciona una categoría</option>
@@ -187,6 +240,9 @@ export default function EditProductPage() {
                   </option>
                 ))}
               </select>
+              {fieldErrors.categoryId && (
+                <p className="text-xs font-medium text-red-600">{fieldErrors.categoryId}</p>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -199,8 +255,11 @@ export default function EditProductPage() {
                 onChange={handleChange}
                 className="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               >
-                <option value="active">Activo</option>
-                <option value="inactive">Inactivo</option>
+                {PRODUCT_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status === 'Active' ? 'Activo' : 'Inactivo'}
+                  </option>
+                ))}
               </select>
             </div>
 
