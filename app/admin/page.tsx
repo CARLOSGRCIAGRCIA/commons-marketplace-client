@@ -66,7 +66,7 @@ export default function AdminPage() {
             totalStores: storesData.length,
             totalProducts: productsArray.length,
             totalReviews: 0,
-            pendingStores: storesData.filter((s) => (s.status || '').toLowerCase() === 'pending').length,
+            pendingStores: storesData.filter((s) => (s.status || '') === 'Pending').length,
             pendingSellerRequests: 0,
           };
         }
@@ -83,7 +83,7 @@ export default function AdminPage() {
     })();
   }, [isAuthenticated, user]);
 
-  const handleStoreStatus = async (storeId: string, status: 'approved' | 'rejected') => {
+  const handleStoreStatus = async (storeId: string, status: 'Approved' | 'Rejected') => {
     try {
       await apiClient.patch(API_ENDPOINTS.stores.updateStatus(storeId), {
         status: status.charAt(0).toUpperCase() + status.slice(1),
@@ -183,13 +183,13 @@ export default function AdminPage() {
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
-                      onClick={() => handleStoreStatus(store._id, 'approved')}
+                      onClick={() => handleStoreStatus(store._id, 'Approved')}
                       className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-mono font-medium uppercase tracking-wider text-primary border-2 border-primary bg-primary-ghost hover:bg-primary hover:text-white transition-all duration-200"
                     >
                       ✓ Aprobar
                     </button>
                     <button
-                      onClick={() => handleStoreStatus(store._id, 'rejected')}
+                      onClick={() => handleStoreStatus(store._id, 'Rejected')}
                       className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-mono font-medium uppercase tracking-wider text-danger border-2 border-danger bg-danger-bg hover:bg-danger hover:text-white transition-all duration-200"
                     >
                       ✕ Rechazar

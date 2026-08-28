@@ -89,16 +89,16 @@ const StoreCard = memo(function StoreCard({ store }: { store: Store }) {
           <div className="flex items-center justify-center mt-4 pt-3 border-t-2 border-gray-100">
             <Badge
               variant={
-                store.status.toLowerCase() === 'approved'
+                store.status === 'Approved'
                   ? 'success'
-                  : store.status.toLowerCase() === 'pending'
+                  : store.status === 'Pending'
                   ? 'warning'
                   : 'danger'
               }
               className="text-[10px] font-mono uppercase tracking-wider"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5" />
-              {store.status.charAt(0).toUpperCase() + store.status.slice(1)}
+              {store.status}
             </Badge>
           </div>
         </div>
@@ -125,7 +125,7 @@ function StoreSkeleton() {
 
 export const StoresList = memo(function StoresList() {
   const { stores, isLoading, error, total, refetch } = useStores({
-    status: 'approved',
+    status: 'Approved',
     limit: 12,
   });
 

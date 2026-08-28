@@ -1,10 +1,10 @@
 export type UserRole = 'buyer' | 'seller' | 'admin';
 
-export type ProductStatus = 'active' | 'inactive' | 'deleted';
+export type ProductStatus = 'Active' | 'Inactive' | 'OutOfStock' | 'Deleted';
 
-export type StoreStatus = 'pending' | 'approved' | 'rejected';
+export type StoreStatus = 'Pending' | 'Approved' | 'Rejected' | 'Suspended';
 
-export type SellerRequestStatus = 'pending' | 'approved' | 'rejected';
+export type SellerRequestStatus = 'Pending' | 'Approved' | 'Rejected';
 
 export interface User {
   _id: string;

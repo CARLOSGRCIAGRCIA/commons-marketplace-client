@@ -144,7 +144,7 @@ export function ProductDetailClient({ productId }: ProductDetailClientProps) {
               <span className="text-2xl font-mono font-bold text-primary">
                 ${product.price.toFixed(2)}
               </span>
-              <Badge variant={product.status === 'active' ? 'success' : 'warning'} className="text-[10px]">
+              <Badge variant={product.status === 'Active' ? 'success' : 'warning'} className="text-[10px]">
                 {product.status}
               </Badge>
             </div>
