@@ -1,9 +1,11 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
+import { useFormField } from '@/hooks/use-form-field';
 import { Button, Input } from '@/components/ui';
+import { isEmail } from '@/lib/validation';
 
 function LoginFormContent() {
   const router = useRouter();
@@ -11,47 +13,29 @@ function LoginFormContent() {
   const callbackUrl = searchParams.get('callbackUrl') || '/';
   const { login, isLoading, error, clearError } = useAuthStore();
 
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
+  const { values, errors, handleChange, handleSubmit } = useFormField({
+    initialValues: { email: '', password: '' },
+    validate: (vals) => {
+      const errs: Record<string, string> = {};
+      if (!vals.email) {
+        errs.email = 'El email es requerido';
+      } else if (!isEmail(vals.email)) {
+        errs.email = 'Email inválido';
+      }
+      if (!vals.password) {
+        errs.password = 'La contraseña es requerida';
+      }
+      return errs;
+    },
+    onSubmit: async (vals) => {
+      try {
+        await login(vals.email, vals.password);
+        router.push(callbackUrl);
+      } catch {
+        // Error is handled by the store
+      }
+    },
   });
-
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (validationErrors[name]) {
-      setValidationErrors((prev) => ({ ...prev, [name]: '' }));
-    }
-    if (error) clearError();
-  };
-
-  const validate = () => {
-    const errors: Record<string, string> = {};
-    if (!formData.email) {
-      errors.email = 'El email es requerido';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = 'Email inválido';
-    }
-    if (!formData.password) {
-      errors.password = 'La contraseña es requerida';
-    }
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
-
-    try {
-      await login(formData.email, formData.password);
-      router.push(callbackUrl);
-    } catch {
-      // Error is handled by the store
-    }
-  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -66,9 +50,9 @@ function LoginFormContent() {
         name="email"
         type="email"
         placeholder="tu@email.com"
-        value={formData.email}
+        value={values.email}
         onChange={handleChange}
-        error={validationErrors.email}
+        error={errors.email}
         autoComplete="email"
       />
 
@@ -77,9 +61,9 @@ function LoginFormContent() {
         name="password"
         type="password"
         placeholder="••••••••"
-        value={formData.password}
+        value={values.password}
         onChange={handleChange}
-        error={validationErrors.password}
+        error={errors.password}
         autoComplete="current-password"
       />
 

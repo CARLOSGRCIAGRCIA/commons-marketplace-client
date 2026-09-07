@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { productApi, categoryApi } from '@/lib/api';
 import type { Category } from '@/types';
-import { Button, Input, Textarea, Card, CardContent, Spinner } from '@/components/ui';
+import { useFormField } from '@/hooks/use-form-field';
+import { Button, Input, Textarea, Card, CardContent } from '@/components/ui';
 import { ImageUpload } from '@/components/ui/image-upload';
-import { FIELD_LIMITS, requiredText, optionalText, isPositiveNumber, isNonNegativeInt } from '@/lib/validation';
+import { FIELD_LIMITS, requiredText, isPositiveNumber, isNonNegativeInt } from '@/lib/validation';
 import { sanitizeFormData, validateNumericField } from '@/lib/sanitize';
 
 export default function NewProductPage() {
@@ -14,18 +15,49 @@ export default function NewProductPage() {
   const router = useRouter();
   const storeSlug = params.slug as string;
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [images, setImages] = useState<File[]>([]);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [imagesError, setImagesError] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    price: '',
-    stock: '',
-    categoryId: '',
+  const { values, errors, isSubmitting, error, handleChange, handleSubmit, setFieldError } = useFormField({
+    initialValues: {
+      name: '',
+      description: '',
+      price: '',
+      stock: '',
+      categoryId: '',
+    },
+    validate: (vals) => {
+      const errs: Record<string, string> = {};
+      const nameError = requiredText(vals.name, FIELD_LIMITS.PRODUCT_NAME, 'El nombre');
+      if (nameError) errs.name = nameError;
+      const descError = requiredText(vals.description, FIELD_LIMITS.PRODUCT_DESCRIPTION, 'La descripción');
+      if (descError) errs.description = descError;
+      if (!isPositiveNumber(vals.price)) errs.price = 'El precio debe ser un número mayor o igual a 0';
+      if (!isNonNegativeInt(vals.stock)) errs.stock = 'El stock debe ser un número entero mayor o igual a 0';
+      if (!vals.categoryId) errs.categoryId = 'Debes seleccionar una categoría';
+      if (images.length === 0) errs.images = 'Debes subir al menos una imagen principal';
+      return errs;
+    },
+    onSubmit: async (vals) => {
+      const data = new FormData();
+      data.append('name', vals.name);
+      data.append('description', vals.description);
+      const price = validateNumericField(vals.price, {});
+      const stock = validateNumericField(vals.stock, { integer: true });
+      data.append('price', String(price));
+      data.append('stock', String(stock));
+      data.append('categoryId', vals.categoryId);
+      data.append('storeSlug', storeSlug);
+      if (images.length > 0) {
+        data.append('mainImage', images[0]);
+        images.slice(1).forEach((img) => {
+          data.append('additionalImages', img);
+        });
+      }
+      await productApi.create(sanitizeFormData(data));
+      router.push(`/dashboard/my-store/${storeSlug}/products`);
+    },
   });
 
   useEffect(() => {
@@ -40,20 +72,13 @@ export default function NewProductPage() {
     fetchCategories();
   }, []);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
   const handleImageChange = (file: File | null) => {
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        setFieldErrors((prev) => ({ ...prev, images: 'Cada imagen no debe superar 5MB' }));
+        setImagesError('Cada imagen no debe superar 5MB');
         return;
       }
-      setFieldErrors((prev) => ({ ...prev, images: '' }));
+      setImagesError(null);
       setImages((prev) => {
         if (prev.length >= 5) return prev;
         return [...prev, file];
@@ -66,10 +91,10 @@ export default function NewProductPage() {
   const handleImageChangeMultiple = (newFiles: File[]) => {
     const oversized = newFiles.some((file) => file.size > 5 * 1024 * 1024);
     if (oversized) {
-      setFieldErrors((prev) => ({ ...prev, images: 'Cada imagen no debe superar 5MB' }));
+      setImagesError('Cada imagen no debe superar 5MB');
       return;
     }
-    setFieldErrors((prev) => ({ ...prev, images: '' }));
+    setImagesError(null);
     setImages((prev) => {
       const combined = [...prev, ...newFiles];
       return combined.slice(0, 5);
@@ -78,69 +103,6 @@ export default function NewProductPage() {
 
   const handleImageRemove = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    const errors: Record<string, string> = {};
-
-    const nameError = requiredText(formData.name, FIELD_LIMITS.PRODUCT_NAME, 'El nombre');
-    if (nameError) errors.name = nameError;
-
-    const descError = requiredText(formData.description, FIELD_LIMITS.PRODUCT_DESCRIPTION, 'La descripción');
-    if (descError) errors.description = descError;
-
-    if (!isPositiveNumber(formData.price)) {
-      errors.price = 'El precio debe ser un número mayor o igual a 0';
-    }
-    if (!isNonNegativeInt(formData.stock)) {
-      errors.stock = 'El stock debe ser un número entero mayor o igual a 0';
-    }
-    if (!formData.categoryId) {
-      errors.categoryId = 'Debes seleccionar una categoría';
-    }
-
-    if (images.length === 0) {
-      errors.images = 'Debes subir al menos una imagen principal';
-    }
-
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      setError('Por favor corrige los campos marcados en rojo.');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const data = new FormData();
-      data.append('name', formData.name);
-      data.append('description', formData.description);
-
-      const price = validateNumericField(formData.price, {});
-      const stock = validateNumericField(formData.stock, { integer: true });
-      data.append('price', String(price));
-      data.append('stock', String(stock));
-
-      data.append('categoryId', formData.categoryId);
-      data.append('storeSlug', storeSlug);
-
-      if (images.length > 0) {
-        data.append('mainImage', images[0]);
-        images.slice(1).forEach((img) => {
-          data.append('additionalImages', img);
-        });
-      }
-
-      await productApi.create(sanitizeFormData(data));
-      router.push(`/dashboard/my-store/${storeSlug}/products`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al crear producto');
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   return (
@@ -163,30 +125,30 @@ export default function NewProductPage() {
               multiple
               maxImages={5}
             />
-            {fieldErrors.images && (
-              <p className="text-xs font-medium text-red-600">{fieldErrors.images}</p>
+            {imagesError && (
+              <p className="text-xs font-medium text-red-600">{imagesError}</p>
             )}
 
             <Input
               label="Nombre del producto"
               name="name"
-              value={formData.name}
+              value={values.name}
               onChange={handleChange}
               placeholder="Nombre del producto"
               required
               maxLength={FIELD_LIMITS.PRODUCT_NAME}
-              error={fieldErrors.name}
+              error={errors.name}
             />
 
             <Textarea
               label="Descripción"
               name="description"
-              value={formData.description}
+              value={values.description}
               onChange={handleChange}
               placeholder="Descripción del producto..."
               rows={3}
               maxLength={FIELD_LIMITS.PRODUCT_DESCRIPTION}
-              error={fieldErrors.description}
+              error={errors.description}
             />
 
             <div className="grid grid-cols-2 gap-4">
@@ -196,20 +158,20 @@ export default function NewProductPage() {
                 type="number"
                 step="0.01"
                 min="0"
-                value={formData.price}
+                value={values.price}
                 onChange={handleChange}
                 required
-                error={fieldErrors.price}
+                error={errors.price}
               />
               <Input
                 label="Stock"
                 name="stock"
                 type="number"
                 min="0"
-                value={formData.stock}
+                value={values.stock}
                 onChange={handleChange}
                 required
-                error={fieldErrors.stock}
+                error={errors.stock}
               />
             </div>
 
@@ -219,10 +181,10 @@ export default function NewProductPage() {
               </label>
               <select
                 name="categoryId"
-                value={formData.categoryId}
+                value={values.categoryId}
                 onChange={handleChange}
                 className={`block w-full rounded-lg border px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary ${
-                  fieldErrors.categoryId ? 'border-red-500' : 'border-gray-300'
+                  errors.categoryId ? 'border-red-500' : 'border-gray-300'
                 }`}
                 required
               >
@@ -233,8 +195,8 @@ export default function NewProductPage() {
                   </option>
                 ))}
               </select>
-              {fieldErrors.categoryId && (
-                <p className="text-xs font-medium text-red-600">{fieldErrors.categoryId}</p>
+              {errors.categoryId && (
+                <p className="text-xs font-medium text-red-600">{errors.categoryId}</p>
               )}
             </div>
 
