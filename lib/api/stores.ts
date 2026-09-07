@@ -1,5 +1,5 @@
 import { apiClient, API_ENDPOINTS } from './client';
-import type { Store } from '@/types';
+import type { Store, StoreStatus } from '@/types';
 import type { StoreFilters } from '@/types/api';
 
 export const storeApi = {
