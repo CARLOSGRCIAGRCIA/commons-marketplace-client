@@ -1,9 +1,10 @@
 import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import type { ComponentProps } from 'react';
 
 export function cn(...inputs: (string | undefined | null | false)[]) {
-  return clsx(inputs);
+  return twMerge(clsx(inputs));
 }
 
 /* ─── Button ─────────────────────────────────────────────────────────── */
