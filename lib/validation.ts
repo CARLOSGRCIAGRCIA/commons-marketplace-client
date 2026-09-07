@@ -91,7 +91,7 @@ export function validateField(value: string, rules: Rule[]): string | null {
 export function requiredText(value: string, max: number, label: string): string | null {
   return validateField(value, [
     { validator: isRequired, message: `${label} es requerido` },
-    { validator: hasControlChars, message: `${label} contiene caracteres no válidos` },
+    { validator: (v) => !hasControlChars(v), message: `${label} contiene caracteres no válidos` },
     { validator: (v) => isWithinLength(v, max), message: `${label} no debe exceder ${max} caracteres` },
   ]);
 }
@@ -100,7 +100,7 @@ export function requiredText(value: string, max: number, label: string): string 
 export function optionalText(value: string, max: number, label: string): string | null {
   if (value.trim() === '') return null;
   return validateField(value, [
-    { validator: hasControlChars, message: `${label} contiene caracteres no válidos` },
+    { validator: (v) => !hasControlChars(v), message: `${label} contiene caracteres no válidos` },
     { validator: (v) => isWithinLength(v, max), message: `${label} no debe exceder ${max} caracteres` },
   ]);
 }

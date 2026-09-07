@@ -1,6 +1,9 @@
 'use client';
 
 import { io, Socket } from 'socket.io-client';
+import type { IncomingSocketMessage } from '@/types/chat';
+
+export type { IncomingSocketMessage };
 
 let socket: Socket | null = null;
 
@@ -65,16 +68,6 @@ export const stopTyping = (conversationId: string): void => {
     socket.emit('stop-typing', { room: `chat:${conversationId}` });
   }
 };
-
-export interface IncomingSocketMessage {
-  _id?: string;
-  id?: string;
-  content?: string;
-  senderId?: string;
-  sender?: { id?: string };
-  receiverId?: string;
-  createdAt?: string;
-}
 
 export const onNewMessage = (
   callback: (data: { message: IncomingSocketMessage; conversationId: string }) => void

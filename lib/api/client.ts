@@ -1,12 +1,7 @@
 import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { API_URL, API_ENDPOINTS } from './endpoints';
 import { sanitizeFormData } from '@/lib/sanitize';
-
-interface RefreshResponse {
-  message: string;
-  token: string;
-  expiresAt?: number;
-}
+import type { RefreshResponse } from '@/types/api';
 
 class ApiClient {
   private client: AxiosInstance;
@@ -123,6 +118,13 @@ class ApiClient {
           },
         };
         localStorage.setItem('auth-storage', JSON.stringify(newAuthData));
+        if (typeof document !== 'undefined') {
+          const role = parsed?.state?.user?.role || '';
+          document.cookie = `auth-token=${newToken}; path=/; max-age=86400; SameSite=Lax`;
+          if (role) {
+            document.cookie = `auth-role=${role}; path=/; max-age=86400; SameSite=Lax`;
+          }
+        }
         return newToken;
       }
       

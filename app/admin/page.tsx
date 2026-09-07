@@ -4,22 +4,7 @@ import { useRequireRole } from '@/hooks/use-auth';
 import { apiClient, API_ENDPOINTS } from '@/lib/api';
 import Link from 'next/link';
 import { Badge, Spinner } from '@/components/ui';
-
-interface AdminStats {
-  totalUsers: number; totalStores: number; totalProducts: number;
-  totalReviews: number; pendingStores: number; pendingSellerRequests: number;
-}
-
-interface StoreSummary {
-  _id: string;
-  storeName?: string;
-  description?: string;
-  status?: string;
-}
-
-interface UserSummary {
-  _id: string;
-}
+import type { AdminStats, StoreSummary, UserSummary } from '@/types/api';
 
 const STATS = [
   { key: 'totalUsers', label: 'Usuarios', icon: '👥', accent: 'var(--primary)', bg: 'var(--primary-ghost)' },

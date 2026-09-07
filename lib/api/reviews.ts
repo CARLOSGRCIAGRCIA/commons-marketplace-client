@@ -1,11 +1,8 @@
 import { apiClient, API_ENDPOINTS } from './client';
 import type { Review } from '@/types';
+import type { ReviewListResponse } from '@/types/api';
 
-export interface ReviewListResponse {
-  message: string;
-  reviews: Review[];
-  count: number;
-}
+export type { ReviewListResponse };
 
 export const reviewApi = {
   getAll: (filters?: { productId?: string; page?: number; limit?: number }) =>

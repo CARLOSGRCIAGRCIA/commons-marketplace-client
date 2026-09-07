@@ -27,6 +27,18 @@ interface AuthState {
   setUser: (user: User) => void;
 }
 
+function setAuthCookies(token: string, role: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `auth-token=${token}; path=/; max-age=86400; SameSite=Lax`;
+  document.cookie = `auth-role=${role}; path=/; max-age=86400; SameSite=Lax`;
+}
+
+function clearAuthCookies() {
+  if (typeof document === 'undefined') return;
+  document.cookie = 'auth-token=; path=/; max-age=0';
+  document.cookie = 'auth-role=; path=/; max-age=0';
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -51,6 +63,9 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
+          if (response.token && response.user) {
+            setAuthCookies(response.token, response.user.role);
+          }
         } catch (error: unknown) {
           const errorMessage = error instanceof Error ? error.message : 'Login failed';
           
@@ -91,6 +106,10 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
           });
           
+          if (response.token && response.user) {
+            setAuthCookies(response.token, response.user.role);
+          }
+          
           return { user: response.user, token: response.token };
         } catch (error) {
           set({
@@ -107,6 +126,8 @@ export const useAuthStore = create<AuthState>()(
         } catch {
           // Ignore logout errors, proceed with local logout
         }
+        
+        clearAuthCookies();
         
         if (typeof window !== 'undefined') {
           localStorage.removeItem('auth-storage');

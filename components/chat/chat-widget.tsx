@@ -10,35 +10,7 @@ import {
   onNewMessage,
 } from '@/lib/socket';
 import type { Conversation, User } from '@/types';
-
-interface ChatMessage {
-  _id: string;
-  id?: string;
-  content: string;
-  senderId: string;
-  sender?: { id: string };
-  receiver?: { id: string };
-  receiverId: string;
-  createdAt: string;
-}
-
-interface ParticipantLike {
-  _id?: string;
-  id?: string;
-  name?: string;
-  lastName?: string;
-  email?: string;
-  profilePicUrl?: string;
-  role?: string;
-}
-
-interface ConversationRef {
-  _id?: string;
-  id?: string;
-  lastMessage?: Conversation['lastMessage'];
-  updatedAt?: string;
-  createdAt?: string;
-}
+import type { ChatMessage, ParticipantLike, ConversationRef } from '@/types/chat';
 
 function getInitials(name?: string) {
   if (!name) return '?';
