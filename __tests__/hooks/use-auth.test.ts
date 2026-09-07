@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { useRequireAuth, useRequireRole } from '@/hooks/use-auth';
+import { useAuth, useRequireAuth, useRequireRole } from '@/hooks/use-auth';
 import { useAuthStore } from '@/store/auth-store';
 
 const mockPush = vi.fn();
@@ -16,6 +16,30 @@ beforeEach(() => {
     isAuthenticated: false,
     isLoading: false,
     error: null,
+  });
+});
+
+describe('useAuth', () => {
+  it('should return user and auth state from store', () => {
+    useAuthStore.setState({
+      user: { _id: '1', name: 'John', role: 'buyer', email: 'j@j.com', createdAt: '', updatedAt: '' } as any,
+      isAuthenticated: true,
+      isLoading: false,
+      error: null,
+    });
+    const { result } = renderHook(() => useAuth());
+    expect(result.current.user).toBeDefined();
+    expect(result.current.isAuthenticated).toBe(true);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('should return login, register, logout, clearError functions', () => {
+    const { result } = renderHook(() => useAuth());
+    expect(typeof result.current.login).toBe('function');
+    expect(typeof result.current.register).toBe('function');
+    expect(typeof result.current.logout).toBe('function');
+    expect(typeof result.current.clearError).toBe('function');
   });
 });
 

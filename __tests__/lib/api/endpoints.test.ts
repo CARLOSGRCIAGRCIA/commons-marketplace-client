@@ -1,5 +1,32 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { API_ENDPOINTS, API_URL } from '@/lib/api/endpoints';
+
+vi.mock('axios', () => {
+  const mockAxiosInstance = Object.assign(
+    vi.fn().mockResolvedValue({ data: {} }),
+    {
+      get: vi.fn().mockResolvedValue({ data: {} }),
+      post: vi.fn().mockResolvedValue({ data: {} }),
+      put: vi.fn().mockResolvedValue({ data: {} }),
+      patch: vi.fn().mockResolvedValue({ data: {} }),
+      delete: vi.fn().mockResolvedValue({ data: {} }),
+      interceptors: {
+        request: { use: vi.fn() },
+        response: { use: vi.fn() },
+      },
+    }
+  );
+  return {
+    default: {
+      create: vi.fn(() => mockAxiosInstance),
+    },
+    __mockInstance: mockAxiosInstance,
+  };
+});
+
+vi.mock('@/lib/sanitize', () => ({
+  sanitizeFormData: vi.fn((data) => data),
+}));
 
 describe('API_URL', () => {
   it('should default to empty string', () => {
@@ -129,6 +156,230 @@ describe('API_ENDPOINTS', () => {
 
     it('should generate correct URL for admin product delete', () => {
       expect(API_ENDPOINTS.admin.products.delete('prod1')).toBe('/api/v1/admin/products/prod1');
+    });
+  });
+});
+
+describe('ApiClient', () => {
+  let apiClient: any;
+  let mockInstance: any;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    const axiosMock = await import('axios') as any;
+    mockInstance = axiosMock.__mockInstance;
+    const clientModule = await import('@/lib/api/client');
+    apiClient = clientModule.apiClient;
+  });
+
+  describe('HTTP methods', () => {
+    it('get should call client.get and return data', async () => {
+      mockInstance.get.mockResolvedValueOnce({ data: { id: 1 } });
+      const result = await apiClient.get('/test');
+      expect(mockInstance.get).toHaveBeenCalledWith('/test', { params: undefined });
+      expect(result).toEqual({ id: 1 });
+    });
+
+    it('get should pass params', async () => {
+      mockInstance.get.mockResolvedValueOnce({ data: { items: [] } });
+      await apiClient.get('/test', { page: 1, limit: 10 });
+      expect(mockInstance.get).toHaveBeenCalledWith('/test', { params: { page: 1, limit: 10 } });
+    });
+
+    it('post should call client.post and return data', async () => {
+      mockInstance.post.mockResolvedValueOnce({ data: { id: 1 } });
+      const result = await apiClient.post('/test', { name: 'test' });
+      expect(mockInstance.post).toHaveBeenCalledWith('/test', { name: 'test' }, undefined);
+      expect(result).toEqual({ id: 1 });
+    });
+
+    it('put should call client.put and return data', async () => {
+      mockInstance.put.mockResolvedValueOnce({ data: { id: 1 } });
+      const result = await apiClient.put('/test', { name: 'updated' });
+      expect(mockInstance.put).toHaveBeenCalledWith('/test', { name: 'updated' }, undefined);
+      expect(result).toEqual({ id: 1 });
+    });
+
+    it('patch should call client.patch and return data', async () => {
+      mockInstance.patch.mockResolvedValueOnce({ data: { id: 1 } });
+      const result = await apiClient.patch('/test', { name: 'patched' });
+      expect(mockInstance.patch).toHaveBeenCalledWith('/test', { name: 'patched' });
+      expect(result).toEqual({ id: 1 });
+    });
+
+    it('delete should call client.delete and return data', async () => {
+      mockInstance.delete.mockResolvedValueOnce({ data: { success: true } });
+      const result = await apiClient.delete('/test/1');
+      expect(mockInstance.delete).toHaveBeenCalledWith('/test/1');
+      expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe('Request interceptor', () => {
+    it('should add Authorization header from localStorage', () => {
+      const interceptor = mockInstance.interceptors.request.use.mock.calls[0][0];
+      const config = { headers: {}, data: null };
+      localStorage.setItem('auth-storage', JSON.stringify({ state: { token: 'my-token' } }));
+      const result = interceptor(config);
+      expect(result.headers.Authorization).toBe('Bearer my-token');
+    });
+
+    it('should not add header if no auth-storage', () => {
+      const interceptor = mockInstance.interceptors.request.use.mock.calls[0][0];
+      const config = { headers: {}, data: null };
+      localStorage.removeItem('auth-storage');
+      const result = interceptor(config);
+      expect(result.headers.Authorization).toBeUndefined();
+    });
+
+    it('should not add header if parsed token is missing', () => {
+      const interceptor = mockInstance.interceptors.request.use.mock.calls[0][0];
+      const config = { headers: {}, data: null };
+      localStorage.setItem('auth-storage', JSON.stringify({ state: {} }));
+      const result = interceptor(config);
+      expect(result.headers.Authorization).toBeUndefined();
+    });
+
+    it('should handle malformed JSON in localStorage', () => {
+      const interceptor = mockInstance.interceptors.request.use.mock.calls[0][0];
+      const config = { headers: {}, data: null };
+      localStorage.setItem('auth-storage', 'not-valid-json');
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const result = interceptor(config);
+      expect(result).toEqual(config);
+      consoleSpy.mockRestore();
+    });
+
+    it('should sanitize FormData', async () => {
+      const interceptor = mockInstance.interceptors.request.use.mock.calls[0][0];
+      const formData = new FormData();
+      formData.append('name', 'test');
+      const config = { headers: {}, data: formData };
+      localStorage.removeItem('auth-storage');
+      interceptor(config);
+      const sanitize = await import('@/lib/sanitize');
+      expect(sanitize.sanitizeFormData).toHaveBeenCalledWith(formData);
+    });
+  });
+
+  describe('Response interceptor', () => {
+    it('should pass through successful responses', () => {
+      const interceptor = mockInstance.interceptors.response.use.mock.calls[0][0];
+      const response = { data: { id: 1 } };
+      const result = interceptor(response);
+      expect(result).toBe(response);
+    });
+
+    it('should re-throw non-401 errors', async () => {
+      const interceptor = mockInstance.interceptors.response.use.mock.calls[0][1];
+      const error = { response: { status: 500 }, config: {} };
+      await expect(interceptor(error)).rejects.toBe(error);
+    });
+
+    it('should handle 401 with successful token refresh', async () => {
+      const interceptor = mockInstance.interceptors.response.use.mock.calls[0][1];
+      const originalConfig = { _retry: false, headers: {} };
+      const error = { response: { status: 401 }, config: originalConfig };
+
+      localStorage.setItem('auth-storage', JSON.stringify({
+        state: { refreshToken: 'refresh-123', token: 'old-token', user: { role: 'buyer' } },
+      }));
+
+      mockInstance.post.mockResolvedValueOnce({ data: { token: 'new-token', expiresAt: 999 } });
+      mockInstance.mockResolvedValueOnce({ data: { id: 1 } });
+
+      const result = await interceptor(error);
+      expect(mockInstance.post).toHaveBeenCalledWith(API_ENDPOINTS.auth.refresh, { refreshToken: 'refresh-123' });
+      expect(result).toEqual({ data: { id: 1 } });
+    });
+
+    it('should handle 401 with failed refresh (no refresh token)', async () => {
+      const interceptor = mockInstance.interceptors.response.use.mock.calls[0][1];
+      const originalConfig = { _retry: false, headers: {} };
+      const error = { response: { status: 401 }, config: originalConfig };
+
+      localStorage.setItem('auth-storage', JSON.stringify({
+        state: { token: 'old-token' },
+      }));
+
+      await expect(interceptor(error)).rejects.toBe(error);
+      expect(localStorage.getItem('auth-storage')).toBeNull();
+    });
+
+    it('should handle 401 when refresh call throws', async () => {
+      const interceptor = mockInstance.interceptors.response.use.mock.calls[0][1];
+      const originalConfig = { _retry: false, headers: {}, url: '/test' };
+      const error = { response: { status: 401 }, config: originalConfig, message: '401' };
+
+      localStorage.setItem('auth-storage', JSON.stringify({
+        state: { refreshToken: 'refresh-123' },
+      }));
+
+      mockInstance.post.mockRejectedValueOnce(new Error('Network fail'));
+
+      await expect(interceptor(error)).rejects.toBe(error);
+      expect(localStorage.getItem('auth-storage')).toBeNull();
+    });
+
+    it('should queue requests while refreshing', async () => {
+      const interceptor = mockInstance.interceptors.response.use.mock.calls[0][1];
+      const originalConfig1 = { _retry: false, headers: {} };
+      const error1 = { response: { status: 401 }, config: originalConfig1 };
+
+      localStorage.setItem('auth-storage', JSON.stringify({
+        state: { refreshToken: 'refresh-123', token: 'old' },
+      }));
+
+      mockInstance.post.mockResolvedValue({ data: { token: 'new-token', expiresAt: 999 } });
+      mockInstance.mockResolvedValue({ data: { retried: true } });
+
+      const promise1 = interceptor(error1);
+
+      const originalConfig2 = { _retry: false, headers: {} };
+      const error2 = { response: { status: 401 }, config: originalConfig2 };
+      const promise2 = interceptor(error2);
+
+      const [result1, result2] = await Promise.all([promise1, promise2]);
+      expect(result1).toEqual({ data: { retried: true } });
+      expect(result2).toEqual({ data: { retried: true } });
+    });
+
+    it('should reject queued requests when refresh returns null', async () => {
+      const interceptor = mockInstance.interceptors.response.use.mock.calls[0][1];
+
+      localStorage.setItem('auth-storage', JSON.stringify({
+        state: { refreshToken: 'refresh-123' },
+      }));
+
+      mockInstance.post.mockResolvedValue({ data: {} });
+
+      const originalConfig1 = { _retry: false, headers: {} };
+      const error1 = { response: { status: 401 }, config: originalConfig1 };
+      const promise1 = interceptor(error1);
+
+      const originalConfig2 = { _retry: false, headers: {} };
+      const error2 = { response: { status: 401 }, config: originalConfig2 };
+      const promise2 = interceptor(error2);
+
+      await expect(Promise.all([promise1, promise2])).rejects.toBe(error1);
+    });
+  });
+
+  describe('handleLogout', () => {
+    it('should clear localStorage and redirect', async () => {
+      const interceptor = mockInstance.interceptors.response.use.mock.calls[0][1];
+      const originalConfig = { _retry: false, headers: {} };
+      const error = { response: { status: 401 }, config: originalConfig };
+
+      localStorage.setItem('auth-storage', JSON.stringify({ state: {} }));
+
+      delete (window as any).location;
+      (window as any).location = { href: '' };
+
+      await expect(interceptor(error)).rejects.toBe(error);
+      expect(localStorage.getItem('auth-storage')).toBeNull();
+      expect(window.location.href).toBe('/');
     });
   });
 });

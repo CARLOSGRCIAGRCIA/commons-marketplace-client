@@ -79,4 +79,23 @@ describe('useCategories', () => {
       expect(result.current.error).toBe('Error al cargar categorías');
     });
   });
+
+  it('should return cached categories on second call', async () => {
+    const getAll = vi.fn().mockResolvedValue([
+      { id: '1', name: 'Tech', slug: 'tech' },
+    ]);
+    vi.doMock('@/lib/api', () => ({
+      categoryApi: { getAll },
+    }));
+    const { useCategories } = await import('@/hooks/use-categories');
+
+    const { result: result1 } = renderHook(() => useCategories());
+    await waitFor(() => expect(result1.current.isLoading).toBe(false));
+
+    const { result: result2 } = renderHook(() => useCategories());
+    await waitFor(() => expect(result2.current.isLoading).toBe(false));
+
+    expect(getAll).toHaveBeenCalledTimes(1);
+    expect(result2.current.categories).toHaveLength(1);
+  });
 });

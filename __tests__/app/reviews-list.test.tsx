@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
@@ -102,5 +103,71 @@ describe('ReviewsSection', () => {
     const { ReviewsSection } = await import('@/app/products/[slug]/reviews-list');
     render(<ReviewsSection productId="p1" />);
     expect(screen.queryByText('Escribir Reseña')).not.toBeInTheDocument();
+  });
+
+  it('should submit review successfully', async () => {
+    const { reviewApi } = await import('@/lib/api');
+    vi.mocked(reviewApi.create).mockResolvedValue({ id: 'r1', score: 4 } as any);
+    vi.mocked(useReviews).mockReturnValue({
+      reviews: [],
+      isLoading: false,
+      error: null,
+      avgScore: 0,
+      reviewCount: 0,
+    });
+    vi.mocked(useAuth).mockReturnValue({ isAuthenticated: true, user: { _id: 'u1', role: 'buyer' } } as any);
+    const user = userEvent.setup();
+    const { ReviewsSection } = await import('@/app/products/[slug]/reviews-list');
+    render(<ReviewsSection productId="p1" />);
+
+    const textarea = screen.getByPlaceholderText('Cuéntanos tu experiencia...');
+    await user.type(textarea, 'Great product!');
+    await user.click(screen.getByText('Enviar Reseña'));
+
+    await waitFor(() => {
+      expect(screen.getByText('¡Gracias por tu reseña!')).toBeInTheDocument();
+    });
+  });
+
+  it('should show validation error for no user on submit', async () => {
+    vi.mocked(useReviews).mockReturnValue({
+      reviews: [],
+      isLoading: false,
+      error: null,
+      avgScore: 0,
+      reviewCount: 0,
+    });
+    vi.mocked(useAuth).mockReturnValue({ isAuthenticated: true, user: { _id: '', role: 'buyer' } } as any);
+    const user = userEvent.setup();
+    const { ReviewsSection } = await import('@/app/products/[slug]/reviews-list');
+    render(<ReviewsSection productId="p1" />);
+
+    await user.click(screen.getByText('Enviar Reseña'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Debes iniciar sesión para enviar una reseña.')).toBeInTheDocument();
+    });
+  });
+
+  it('should show error when API fails on submit', async () => {
+    const { reviewApi } = await import('@/lib/api');
+    vi.mocked(reviewApi.create).mockRejectedValue(new Error('Server error'));
+    vi.mocked(useReviews).mockReturnValue({
+      reviews: [],
+      isLoading: false,
+      error: null,
+      avgScore: 0,
+      reviewCount: 0,
+    });
+    vi.mocked(useAuth).mockReturnValue({ isAuthenticated: true, user: { _id: 'u1', role: 'buyer' } } as any);
+    const user = userEvent.setup();
+    const { ReviewsSection } = await import('@/app/products/[slug]/reviews-list');
+    render(<ReviewsSection productId="p1" />);
+
+    await user.click(screen.getByText('Enviar Reseña'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Server error')).toBeInTheDocument();
+    });
   });
 });
