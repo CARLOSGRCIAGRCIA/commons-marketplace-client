@@ -4,71 +4,111 @@ Cliente web para Commons Marketplace - un marketplace local que conecta comprado
 
 ## Características
 
-- **Exploración de productos** - Busca y filtra productos por categoría
+- **Exploración de productos** - Busca y filtra productos por categoría con caché inteligente
 - **Tiendas locales** - Descubre tiendas de vendedores en tu comunidad
-- **Tienda propia** - Crea y gestiona tu propia tienda
-- **Chat en tiempo real** - Comunícate directamente con los vendedores
+- **Tienda propia** - Crea y gestiona tu propia tienda con upload de imágenes
+- **Chat en tiempo real** - Comunícate directamente con los vendedores via Socket.io
 - **Wishlist** - Guarda tus productos favoritos
 - **Panel de administración** - Gestiona usuarios, tiendas y productos
 - **Diseño responsive** - Optimizado para móviles y desktop
 - **Tema oscuro/claro** - Soporte automático según preferencias del sistema
+- **Autenticación JWT** - Login con refresh automático de tokens
+- **RBAC** - Control de acceso por roles (buyer, seller, admin)
 
 ## Tech Stack
 
-- **Framework:** Next.js 16 (App Router)
-- **Runtime:** React 19
-- **Estilos:** Tailwind CSS 4 + CSS Variables personalizadas
-- **Estado:** Zustand
-- **HTTP Client:** Axios
-- **Tiempo real:** Socket.io Client
-- **Tipado:** TypeScript 5
-- **Animaciones:** Framer Motion
-- **Linting:** ESLint + ESLint Config Next.js
+| Tecnología | Versión | Propósito |
+|------------|---------|-----------|
+| Next.js | 16.2.4 | Framework (App Router) |
+| React | 19.2.4 | UI Library |
+| TypeScript | 5.x | Tipado estático (strict mode) |
+| Tailwind CSS | 4.x | Estilos utility-first |
+| Zustand | 5.x | Estado global (2 stores) |
+| Axios | 1.15.1 | HTTP client con JWT refresh |
+| Socket.io Client | 4.8.3 | WebSocket en tiempo real |
+| Framer Motion | 12.38.0 | Animaciones |
+| Vitest | 2.x | Unit testing |
 
-## Estructura del Proyecto
+## Arquitectura
+
+### Estructura de Directorios
 
 ```
 commons-marketplace-client/
-├── app/                          # Next.js App Router
-│   ├── admin/                    # Panel de administración
-│   │   ├── categories/           # Gestión de categorías
-│   │   ├── products/             # Gestión de productos
-│   │   └── users/               # Gestión de usuarios
-│   ├── dashboard/                # Dashboard de vendedor
-│   │   └── my-store/
-│   │       ├── edit/             # Editar tienda
-│   │       └── products/         # Gestionar productos
-│   ├── products/                 # Catálogo de productos
-│   │   ├── [slug]/              # Detalle de producto
-│   │   ├── search-bar.tsx        # Barra de búsqueda
-│   │   ├── categories-sidebar.tsx # Filtro de categorías
-│   │   └── products-list.tsx     # Lista de productos
-│   ├── stores/                   # Catálogo de tiendas
-│   │   └── [slug]/              # Detalle de tienda
-│   ├── login/                    # Inicio de sesión
-│   ├── register/                 # Registro de usuario
-│   ├── profile/                 # Perfil de usuario
-│   └── wishlist/                # Lista de deseos
-├── components/                    # Componentes reutilizables
-│   ├── ui/                       # Componentes base (Button, Input, etc.)
-│   ├── layout/                   # Navbar, Footer
-│   └── chat/                    # Chat components
-├── hooks/                        # Custom hooks
-│   ├── use-products.ts           # Hook para productos
-│   ├── use-stores.ts             # Hook para tiendas
-│   └── use-auth.ts               # Hook para autenticación
-├── lib/                          # Utilidades y configuración
-│   ├── api/                      # Cliente API y endpoints
-│   └── types.ts                 # Tipos de TypeScript
-├── public/                        # Archivos estáticos
-└── types/                         # Definiciones de tipos globales
+├── app/                              # Next.js App Router (rutas)
+│   ├── (auth)/                       # Login, register
+│   ├── (public)/                     # Productos, tiendas públicas
+│   ├── (dashboard)/                  # Dashboard de vendedor
+│   ├── (admin)/                      # Panel de administración
+│   ├── profile/
+│   ├── wishlist/
+│   └── api/health/
+│
+├── components/                       # Componentes por dominio
+│   ├── ui/                           # Primitivas base (Button, Input, Card, etc.)
+│   ├── layout/                       # Navbar, Footer
+│   ├── chat/                         # Chat widget (lazy-loaded)
+│   ├── products/                     # ProductCard, ProductsList, SearchBar
+│   └── stores/                       # StoreCard, StoresList
+│
+├── hooks/                            # Custom hooks
+│   ├── use-auth.ts                   # Autenticación + RBAC
+│   ├── use-products.ts               # Products con caché
+│   ├── use-stores.ts                 # Stores con caché
+│   ├── use-categories.ts             # Categories con caché
+│   ├── use-reviews.ts                # Reviews
+│   └── use-form-field.ts             # Abstracción de formularios
+│
+├── lib/                              # Utilidades y API
+│   ├── api/                          # Cliente API + endpoints
+│   ├── validation.ts                 # Validación de campos
+│   ├── sanitize.ts                   # Sanitización de inputs
+│   └── socket.ts                     # Socket.io client
+│
+├── store/                            # Zustand stores
+│   ├── auth-store.ts                 # Auth (persist en localStorage + cookies)
+│   └── wishlist-store.ts             # Wishlist
+│
+├── types/                            # TypeScript types centralizados
+│   ├── index.ts                      # Entidades core
+│   ├── api.ts                        # API response types
+│   └── chat.ts                       # Chat types
+│
+├── middleware.ts                      # Auth + RBAC middleware
+├── vitest.config.ts                  # Test configuration
+└── __tests__/                        # Unit tests
+```
+
+### Capas de Arquitectura
+
+```
+┌─────────────────────────────────────────┐
+│          PRESENTATION LAYER             │
+│  app/ (pages) + components/ (UI)        │
+│  Server Components → SEO/metadata       │
+│  Client Components → interactividad     │
+├─────────────────────────────────────────┤
+│            STATE LAYER                  │
+│  store/ (Zustand) + hooks/              │
+│  auth-store: sesión persistida          │
+│  hooks: orquestan data + estado local   │
+├─────────────────────────────────────────┤
+│            DATA LAYER                   │
+│  lib/api/ (Axios client)                │
+│  Token injection + refresh + retry      │
+│  Domain modules: auth, products, etc.   │
+├─────────────────────────────────────────┤
+│        INFRASTRUCTURE LAYER             │
+│  middleware.ts + nginx/ + Docker        │
+│  Auth guards + reverse proxy           │
+└─────────────────────────────────────────┘
 ```
 
 ## Getting Started
 
 ### Prerequisitos
 
-- Node.js 18+
+- Node.js 22+
 - npm, yarn, pnpm o bun
 - Servidor backend corriendo (ver variables de entorno)
 
@@ -83,20 +123,11 @@ cd commons-marketplace-client
 2. Instala las dependencias:
 ```bash
 npm install
-# o
-yarn install
-# o
-pnpm install
 ```
 
 3. Configura las variables de entorno:
 ```bash
 cp .env.example .env.local
-```
-Edita `.env.local` con tus valores:
-```env
-NEXT_PUBLIC_API_URL=http://localhost:5000
-NEXT_PUBLIC_SOCKET_URL=http://localhost:5000
 ```
 
 4. Inicia el servidor de desarrollo:
@@ -106,51 +137,82 @@ npm run dev
 
 Abre [http://localhost:4000](http://localhost:4000) en tu navegador.
 
+### Docker
+
+```bash
+docker-compose up -d
+```
+
+Esto levanta: client (4000), backend (5000), postgres, redis, nginx (8080).
+
 ## Scripts Disponibles
 
 ```bash
-npm run dev        # Inicia servidor de desarrollo en puerto 4000
-npm run build      # Build de producción
-npm run start      # Inicia servidor de producción
-npm run lint       # Ejecuta ESLint
+npm run dev          # Servidor de desarrollo en puerto 4000
+npm run build        # Build de producción
+npm run start        # Servidor de producción
+npm run lint         # ESLint
+npm run test         # Vitest (unit tests)
+npm run test:watch   # Vitest en watch mode
+npm run test:coverage # Tests con cobertura
 ```
 
 ## Variables de Entorno
 
-| Variable | Descripción | Requerida |
-|----------|-------------|----------|
-| `NEXT_PUBLIC_API_URL` | URL del backend API | Sí |
-| `NEXT_PUBLIC_SOCKET_URL` | URL para Socket.io | Sí |
-| `URL_BACKEND` | URL del backend (fallback) | No |
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_API_URL` | URL del backend API (browser) | same-origin |
+| `NEXT_PUBLIC_SOCKET_URL` | URL para Socket.io | fallback a NEXT_PUBLIC_API_URL |
+| `INTERNAL_API_ORIGIN` | URL interna del backend (server-side rewrites) | `http://localhost:5000` |
+| `CLIENT_PORT` | Puerto del client (docker-compose) | `4000` |
+| `BACKEND_PORT` | Puerto del backend (docker-compose) | `5000` |
+| `NGINX_HTTP_PORT` | Puerto de nginx proxy (docker-compose) | `8080` |
 
 ## Integración con Backend
 
-El cliente se comunica con el backend a través de:
-- **REST API** - CRUD operations via Axios
+- **REST API** - CRUD via Axios con auto-refresh de JWT
 - **WebSocket** - Chat en tiempo real via Socket.io
-- **Autenticación** - JWT tokens con refresh automático
+- **Auth** - JWT tokens con refresh automático en 401
+- **Rewrites** - `/api/*` se proxya al backend via Next.js server rewrites
 
 ### Endpoints Principales
 
-- `/api/v1/products` - Productos
-- `/api/v1/stores` - Tiendas
-- `/api/v1/categories` - Categorías
-- `/api/v1/auth` - Autenticación
-- `/api/v1/chat` - Chat
+| Endpoint | Módulo |
+|----------|--------|
+| `/api/v1/auth/*` | Autenticación (register, login, logout, refresh) |
+| `/api/v1/products` | Productos (CRUD + filtros) |
+| `/api/v1/stores` | Tiendas (CRUD + status) |
+| `/api/v1/categories` | Categorías |
+| `/api/v1/reviews` | Reseñas |
+| `/api/v1/chat/*` | Chat (conversaciones, mensajes) |
+| `/api/v1/wishlist` | Lista de deseos |
+| `/api/v1/admin/*` | Administración |
 
-## Características SEO
+## Testing
 
-- Metadatos dinámicos por página
-- Open Graph y Twitter Cards
-- URLs amigables
-- Sitemap XML (pendiente)
-- Structured Data (pendiente)
+```bash
+# Unit tests
+npm test
+
+# Watch mode
+npm run test:watch
+
+# Cobertura
+npm run test:coverage
+```
+
+Los tests cubren:
+- `lib/validation.ts` - Validación de campos
+- `lib/sanitize.ts` - Sanitización de inputs
+- `types/` - Helper functions para entidades
 
 ## Despliegue
 
-### Vercel (Recomendado)
+### Docker (Recomendado)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/tu-usuario/commons-marketplace-client)
+```bash
+docker-compose --profile production up -d
+```
 
 ### Self-hosting
 
@@ -159,13 +221,28 @@ npm run build
 npm run start
 ```
 
+### CI/CD
+
+GitHub Actions ejecuta automáticamente:
+1. **Lint & Typecheck** - ESLint + TypeScript
+2. **Test** - Vitest unit tests
+3. **Security** - npm audit
+4. **Build & Push** - Docker image a GHCR (solo en main)
+
 ## Contribución
 
 1. Fork el proyecto
-2. Crea tu rama de características (`git checkout -b feature/nueva-caracteristica`)
+2. Crea tu rama (`git checkout -b feature/nueva-caracteristica`)
 3. Commit tus cambios (`git commit -m 'Agrega nueva característica'`)
 4. Push a la rama (`git push origin feature/nueva-caracteristica`)
 5. Abre un Pull Request
+
+### Guía de Código
+
+- **Components**:命名 en PascalCase, en `components/{domain}/`
+- **Hooks**:命名 en `use-{name}.ts`, en `hooks/`
+- **Types**: Centralizados en `types/`
+- **Tests**: En `__tests__/{domain}/` con sufijo `.test.ts`
 
 ## Licencia
 

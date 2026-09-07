@@ -50,24 +50,8 @@ jobs:
             - name: Install dependencies
               run: npm ci
 
-            # Wiring only for now: this repo has no test runner yet.
-            # Adding one (vitest/jest/playwright) via a "test" script in
-            # package.json activates this job automatically.
-            - name: Check for test script
-              id: has_tests
-              run: >-
-                  echo "present=$(node -p "Boolean(require('./package.json').scripts.test)")"
-                  >> "$GITHUB_OUTPUT"
-
             - name: Run tests
-              if: steps.has_tests.outputs.present == 'true'
               run: npm test
-
-            - name: No test suite configured
-              if: steps.has_tests.outputs.present != 'true'
-              run: >-
-                  echo "::warning::No 'test' script in package.json -
-                  skipping tests (add vitest/jest/playwright to activate)."
 
     security:
         name: Security Scan
